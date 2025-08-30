@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createNote } from "@/lib/api";
-import type { NewNote, Note } from "@/types/note";
-import { useNoteStore } from "@/lib/store/noteStore";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createNote } from "../../lib/api";
+import type { NewNote, Note } from "../../types/note";
+import { useNoteStore } from "../../lib/store/noteStore";
 import css from "./NoteForm.module.css";
 
 const TAGS = ["Todo", "Work", "Personal", "Meeting", "Shopping"];
@@ -12,35 +13,28 @@ const TAGS = ["Todo", "Work", "Personal", "Meeting", "Shopping"];
 export default function NoteForm() {
   const router = useRouter();
   const { draft, setDraft, clearDraft } = useNoteStore();
+  const queryClient = useQueryClient();
 
   const [title, setTitle] = useState(draft.title);
   const [tag, setTag] = useState<string>(draft.tag);
   const [content, setContent] = useState(draft.content);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft({ title, content, tag });
   }, [title, content, tag, setDraft]);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      const payload: NewNote = { title, content, tag };
-      const note: Note = await createNote(payload);
-
+  const { mutate, isPending, error } = useMutation({
+    mutationFn: (payload: NewNote) => createNote(payload),
+    onSuccess: (note: Note) => {
       clearDraft();
-
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
       router.push(`/notes/${note.id}`);
-      router.refresh();
-    } catch (err) {
-      setError((err as Error)?.message || "Failed to create note");
-    } finally {
-      setSubmitting(false);
-    }
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    mutate({ title, content, tag });
   }
 
   function handleCancel() {
@@ -91,11 +85,11 @@ export default function NoteForm() {
         />
       </label>
 
-      {error && <p className={css.error}>{error}</p>}
+      {error && <p className={css.error}>{(error as Error).message}</p>}
 
       <div className={css.actions}>
-        <button type="submit" className={css.button} disabled={submitting}>
-          {submitting ? "Creating..." : "Create"}
+        <button type="submit" className={css.button} disabled={isPending}>
+          {isPending ? "Creating..." : "Create"}
         </button>
 
         <button type="button" className={css.secondary} onClick={handleCancel}>
