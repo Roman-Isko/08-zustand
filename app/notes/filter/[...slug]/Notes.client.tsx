@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "@uidotdev/usehooks";
 import { getNotes } from "../../../../lib/api";
@@ -11,8 +12,6 @@ import Loader from "../../../../components/Loader/Loader";
 import ErrorMessage from "../../../../components/ErrorMessage/ErrorMessage";
 import Pagination from "../../../../components/Pagination/Pagination";
 import SearchBox from "../../../../components/SearchBox/SearchBox";
-import NoteForm from "../../../../components/NoteForm/NoteForm";
-import Modal from "../../../../components/Modal/Modal";
 
 import css from "./Notes.client.module.css";
 
@@ -23,7 +22,6 @@ interface NotesClientProps {
 export default function NotesClient({ initialTag }: NotesClientProps) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
 
   const tag = useMemo(
     () => (initialTag === "All" ? undefined : initialTag),
@@ -52,11 +50,11 @@ export default function NotesClient({ initialTag }: NotesClientProps) {
 
   return (
     <div className={css.container}>
-      <SearchBox onSearch={handleSearch} />
+      <SearchBox onSearch={handleSearch} initialValue="" />
 
-      <button onClick={() => setIsOpen(true)} className={css.button}>
-        Create note+
-      </button>
+      <Link href="/notes/action/create" className={css.button}>
+        Create note +
+      </Link>
 
       {isLoading && <Loader />}
       {isError && (
@@ -73,12 +71,6 @@ export default function NotesClient({ initialTag }: NotesClientProps) {
           totalPages={data.totalPages}
           onPageChange={(newPage) => setPage(newPage)}
         />
-      )}
-
-      {isOpen && (
-        <Modal onClose={() => setIsOpen(false)}>
-          <NoteForm onClose={() => setIsOpen(false)} />
-        </Modal>
       )}
     </div>
   );

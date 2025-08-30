@@ -1,99 +1,107 @@
 "use client";
 
-import { Formik, Form, Field, FormikHelpers } from "formik";
-import * as Yup from "yup";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
-
-import { createNote } from "../../lib/api";
-import { NewNote } from "../../types/note";
-import ErrorMessage from "../ErrorMessage/ErrorMessage";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { createNote } from "@/lib/api";
+import type { NewNote, Note } from "@/types/note";
+import { useNoteStore } from "@/lib/store/noteStore";
 import css from "./NoteForm.module.css";
 
-const tags = ["Todo", "Work", "Personal", "Meeting", "Shopping"] as const;
+const TAGS = ["Todo", "Work", "Personal", "Meeting", "Shopping"];
 
-interface NoteFormProps {
-  onClose: () => void;
-}
+export default function NoteForm() {
+  const router = useRouter();
+  const { draft, setDraft, clearDraft } = useNoteStore();
 
-const initialValues: NewNote = {
-  title: "",
-  content: "",
-  tag: "Todo",
-};
+  const [title, setTitle] = useState(draft.title);
+  const [tag, setTag] = useState<string>(draft.tag);
+  const [content, setContent] = useState(draft.content);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-const validationSchema = Yup.object({
-  title: Yup.string().required("Title is required"),
-  content: Yup.string().max(500, "Max 500 characters"),
-  tag: Yup.mixed<(typeof tags)[number]>()
-    .oneOf(tags)
-    .required("Tag is required"),
-});
+  useEffect(() => {
+    setDraft({ title, content, tag });
+  }, [title, content, tag, setDraft]);
 
-export default function NoteForm({ onClose }: NoteFormProps) {
-  const queryClient = useQueryClient();
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
 
-  const mutation = useMutation({
-    mutationFn: createNote,
-    onSuccess: () => {
-      toast.success("Note created!");
-      queryClient.invalidateQueries({ queryKey: ["notes"] });
-      onClose();
-    },
-    onError: () => toast.error("Failed to create note"),
-  });
+    try {
+      const payload: NewNote = { title, content, tag };
+      const note: Note = await createNote(payload);
 
-  const handleSubmit = (values: NewNote, actions: FormikHelpers<NewNote>) => {
-    mutation.mutate(values);
-    actions.resetForm();
-  };
+      clearDraft();
+
+      router.push(`/notes/${note.id}`);
+      router.refresh();
+    } catch (err) {
+      setError((err as Error)?.message || "Failed to create note");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleCancel() {
+    router.back();
+  }
 
   return (
-    <Formik
-      initialValues={initialValues}
-      validationSchema={validationSchema}
-      onSubmit={handleSubmit}
-    >
-      {({ errors, touched }) => (
-        <Form className={css.form}>
-          <label className={css.label}>
-            Title
-            <Field name="title" className={css.input} />
-            {errors.title && touched.title && (
-              <ErrorMessage message={errors.title} />
-            )}
-          </label>
+    <form className={css.form} onSubmit={handleSubmit}>
+      <label className={css.label}>
+        Title
+        <input
+          className={css.input}
+          name="title"
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
+          placeholder="Enter title"
+        />
+      </label>
 
-          <label className={css.label}>
-            Content
-            <Field name="content" as="textarea" className={css.textarea} />
-            {errors.content && touched.content && (
-              <ErrorMessage message={errors.content} />
-            )}
-          </label>
+      <label className={css.label}>
+        Tag
+        <select
+          className={css.select}
+          name="tag"
+          value={tag}
+          onChange={(e) => setTag(e.target.value)}
+        >
+          {TAGS.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </label>
 
-          <label className={css.label}>
-            Tag
-            <Field name="tag" as="select" className={css.select}>
-              {tags.map((tag) => (
-                <option key={tag} value={tag}>
-                  {tag}
-                </option>
-              ))}
-            </Field>
-            {errors.tag && touched.tag && <ErrorMessage message={errors.tag} />}
-          </label>
+      <label className={css.label}>
+        Content
+        <textarea
+          className={css.textarea}
+          name="content"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          rows={6}
+          required
+          placeholder="Write your note..."
+        />
+      </label>
 
-          <div className={css.actions}>
-            <button type="submit" className={css.button}>
-              Create note
-            </button>
-            <button type="button" onClick={onClose} className={css.cancel}>
-              Cancel
-            </button>
-          </div>
-        </Form>
-      )}
-    </Formik>
+      {error && <p className={css.error}>{error}</p>}
+
+      <div className={css.actions}>
+        <button type="submit" className={css.button} disabled={submitting}>
+          {submitting ? "Creating..." : "Create"}
+        </button>
+
+        <button type="button" className={css.secondary} onClick={handleCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }
