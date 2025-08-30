@@ -87,7 +87,7 @@ export default function NotesClient({
 
       {isOpen && (
         <Modal onClose={() => setIsOpen(false)}>
-          <NoteForm onClose={() => setIsOpen(false)} />
+          <NoteForm />
         </Modal>
       )}
     </div>
